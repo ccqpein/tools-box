@@ -1,21 +1,20 @@
 (eval-when (:execute :load-toplevel :compile-toplevel)
   (load "~/quicklisp/setup.lisp")
   (ql:quickload :cl-ppcre)
+  (ql:quickload :hash-set)
 
   (defpackage #:if-go-lib-api-change
-    (:use #:cl #:cl-ppcre))
+    (:use #:cl #:cl-ppcre #:hash-set))
 
   (in-package #:if-go-lib-api-change))
 
-;;;;:= TODO: need know which package
 ;;;;:= TODO: need pub/pravite judger
-;;;;:= TODO: need somewhere to store results for next operation
 ;;;;:= TODO: need to handle "a,b,c int" format in struct
 
 (setf *print-case* :capitalize)
 
 
-(defstruct go-package
+(defstruct go-package-file
   name)
 
 
@@ -47,6 +46,7 @@
 
 
 (defun scan-code (stream)
+  "return all dependencies"
   (do* ((result '())
        (str (read-line stream nil) (read-line stream nil))
        (this-line (cl-ppcre:split "\\s+|\\(" str :limit 2) (cl-ppcre:split "\\s+|\\(" str :limit 2) ))
@@ -100,7 +100,7 @@
                               (give-func-declare str)
                               )
                              ((string= "package" (car this-line))
-                              (make-go-package :name (cadr this-line)))
+                              (make-go-package-file :name (cadr this-line)))
                              )))))))
 
 
@@ -179,3 +179,20 @@
             ((char= c #\{)
              (setf stack (append stack (list c))))))))
 
+
+;;:= need equal function
+(defstruct go-package
+  (name "")
+  (import-packages (make-hash-set) :type hash-set) ;;:= need finish import packages
+  (definations '() :type list))
+
+
+(defun pickup-package (l &key update)
+  (let ((gp (make-go-package)))
+    (setf (go-package-definations gp)
+          (loop
+             for ele in l
+             if (go-package-file-p ele)
+             do (setf (go-package-name gp) (go-package-file-name ele))
+             else collect ele))
+    gp))
