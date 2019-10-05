@@ -196,3 +196,8 @@
              do (setf (go-package-name gp) (go-package-file-name ele))
              else collect ele))
     gp))
+
+
+(defun loop-files-with-root (root &key ignore)
+  (declare (type list ignore)
+           (type string root)))
