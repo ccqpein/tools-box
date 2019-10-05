@@ -1,6 +1,7 @@
 (eval-when (:execute :load-toplevel :compile-toplevel)
   (load "~/quicklisp/setup.lisp")
   (ql:quickload :cl-ppcre)
+  (ql:quickload :cl-fad)
   (ql:quickload :hash-set)
 
   (defpackage #:if-go-lib-api-change
@@ -15,6 +16,7 @@
 
 
 (defstruct go-package-file
+  "this file package"
   name)
 
 
@@ -46,7 +48,7 @@
 
 
 (defun scan-code (stream)
-  "return all dependencies"
+  "return all declares"
   (do* ((result '())
        (str (read-line stream nil) (read-line stream nil))
        (this-line (cl-ppcre:split "\\s+|\\(" str :limit 2) (cl-ppcre:split "\\s+|\\(" str :limit 2) ))
@@ -198,6 +200,28 @@
     gp))
 
 
-(defun loop-files-with-root (root &key ignore)
-  (declare (type list ignore)
-           (type string root)))
+(defun list-all-files-and-folders (root &key (hide nil))
+  (loop
+     with dirs = '()
+     with files = '()
+     for p in (cl-fad:list-directory root)
+       when (or hide
+              (eq (char= (elt (or (pathname-name p)
+                                  (car (last (pathname-directory p))))
+                              0)
+                         #\.)
+                  hide))
+  
+     if (not (pathname-name p))
+     do (push p dirs)
+     else
+     do (push p files)
+     finally (return (values files dirs))))
+
+
+;; (defun loop-files-with-root (root &optional (filetype ".go") &key ignore-dir)
+;;   (declare (type list ignore)
+;;            (type string root))
+;;     (labels ((handler-file (p)
+;;              (declare (type pathname p))
+;;              ))))
