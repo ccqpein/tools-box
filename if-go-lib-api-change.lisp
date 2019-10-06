@@ -15,9 +15,10 @@
 (setf *print-case* :capitalize)
 
 
-(defstruct go-package-file
+(defstruct go-package-head
   "this file package"
-  name)
+  name
+  path)
 
 
 (defstruct go-type
@@ -43,11 +44,11 @@
 (defun scan-file (filepath)
   "read a file and return parse result"
   (with-open-file (s filepath)
-    (scan-code s))
+    (scan-code s filepath))
   )
 
 
-(defun scan-code (stream)
+(defun scan-code (stream &optional (filepath ""))
   "return all declares"
   (do* ((result '())
        (str (read-line stream nil) (read-line stream nil))
@@ -102,7 +103,7 @@
                               (give-func-declare str)
                               )
                              ((string= "package" (car this-line))
-                              (make-go-package-file :name (cadr this-line)))
+                              (make-go-package-head :name (cadr this-line) :path filepath))
                              )))))))
 
 
@@ -185,22 +186,33 @@
 ;;:= need equal function
 (defstruct go-package
   (name "")
-  (import-packages (make-hash-set) :type hash-set) ;;:= need finish import packages
+  (path "")
+  (import-packages (make-hash-set) :type hash-set) ;;:= TODO: need finish import packages
   (definations '() :type list))
 
 
-(defun pickup-package (l &key update)
+(defun pickup-package (l)
+  "l is all definations return from scan function. 
+Return this file's info, just this file"
   (let ((gp (make-go-package)))
     (setf (go-package-definations gp)
           (loop
              for ele in l
-             if (go-package-file-p ele)
-             do (setf (go-package-name gp) (go-package-file-name ele))
+             if (go-package-head-p ele) ;; this line is `package main` line
+             do (setf (go-package-name gp) (go-package-head-name ele)
+                      (go-package-path gp) (go-package-head-path ele))
              else collect ele))
-    gp))
+    (the go-package gp))) ;; just remind myself
+
+
+(defun merge-pickup-packages (pgs)
+  ;;:= TODO: because package maybe have same name, path is care
+  ;; also, one folder maybe have different packages name, so return should be list too.
+  )
 
 
 (defun list-all-files-and-folders (root &key (hide nil))
+  "scan root folder and return all files & folders"
   (loop
      with dirs = '()
      with files = '()
@@ -211,7 +223,6 @@
                               0)
                          #\.)
                   hide))
-  
      if (not (pathname-name p))
      do (push p dirs)
      else
@@ -219,9 +230,26 @@
      finally (return (values files dirs))))
 
 
-;; (defun loop-files-with-root (root &optional (filetype ".go") &key ignore-dir)
-;;   (declare (type list ignore)
-;;            (type string root))
-;;     (labels ((handler-file (p)
-;;              (declare (type pathname p))
-;;              ))))
+;;:= TODO: clean ignore
+(defun clean-ignore-dir (dirs ignore-dir)
+  dirs)
+
+
+;;:= TODO: filter file type
+(defun filter-file-type (type files)
+  files)
+
+
+(defun loop-files-with-root (root &optional (filetype ".go") &key ignore-dir)
+  (do* ((dirs (list root))
+        (dir (car dirs))
+        (result '())
+        )
+       ((not dirs) result)
+    (multiple-value-bind (files dirs) (list-all-files-and-folders dir)
+      (maplist (lambda (file)
+                 (pickup-package (scan-file file)))
+               (filter-file-type filetype files)) 
+      (setf dirs (append (cdr dirs) (clean-ignore-dir dirs ignore-dir))))
+    ))
+  
