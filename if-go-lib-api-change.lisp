@@ -183,7 +183,7 @@
              (setf stack (append stack (list c))))))))
 
 
-;;:= need equal function
+;;:= need equal function, path is matter, and name is matter too
 (defstruct go-package
   (name "")
   (path "")
@@ -247,9 +247,9 @@ Return this file's info, just this file"
         )
        ((not dirs) result)
     (multiple-value-bind (files dirs) (list-all-files-and-folders dir)
-      (maplist (lambda (file)
-                 (pickup-package (scan-file file)))
-               (filter-file-type filetype files)) 
+      (merge-pickup-packages ;;:= need update too
+       (maplist (lambda (file)
+                  (pickup-package (scan-file file)))
+                (filter-file-type filetype files)))
       (setf dirs (append (cdr dirs) (clean-ignore-dir dirs ignore-dir))))
     ))
-  
