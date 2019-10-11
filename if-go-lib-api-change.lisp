@@ -193,7 +193,7 @@
 
 (defun pickup-package (l)
   "l is all definations return from scan function. 
-Return this file's info, just this file"
+Return this file's info, just one file"
   (let ((gp (make-go-package)))
     (setf (go-package-definations gp)
           (loop
@@ -205,9 +205,18 @@ Return this file's info, just this file"
     (the go-package gp))) ;; just remind myself
 
 
+(defun update-go-package (source with)
+  source)
+
+
 (defun merge-pickup-packages (pgs)
-  ;;:= TODO: because package maybe have same name, path is care
-  ;; also, one folder maybe have different packages name, so return should be list too.
+  ;;:= TODO: update function
+  (print pgs)
+  (let (cache)
+    (dolist (pg pgs cache)
+      (update-go-package
+       (find-if (lambda (p) (string= (go-package-name p) (go-package-name pg))) cache)
+       pg)))
   )
 
 
@@ -238,16 +247,16 @@ Return this file's info, just this file"
   (remove-if-not (lambda (f) (string= type (pathname-type f))) files))
 
 
-(defun loop-files-with-root (root &optional (filetype ".go") &key ignore-dir)
-  (do* ((dirs (list root))
-        (dir (car dirs))
-        (result '())
+(defun loop-files-with-root (root &optional (filetype "go") &key ignore-dir)
+  (do* ((root-dirs (list root))
+        (root-dir (car root-dirs) (car root-dirs))
+        (result)
         )
-       ((not dirs) result)
-    (multiple-value-bind (files dirs) (list-all-files-and-folders dir)
-      (merge-pickup-packages ;;:= need update too
-       (maplist (lambda (file)
-                  (pickup-package (scan-file file)))
-                (filter-file-type filetype files)))
-      (setf dirs (append (cdr dirs) (clean-ignore-dir dirs ignore-dir))))
+       ((not root-dirs) result)
+    (multiple-value-bind (files dirs) (list-all-files-and-folders root-dir)
+      (setf result (merge-pickup-packages ;;:= need update too
+                    (map 'list (lambda (file)
+                                 (pickup-package (scan-file file)))
+                         (filter-file-type filetype files))))
+      (setf root-dirs (append (cdr root-dirs) (clean-ignore-dir dirs ignore-dir))))
     ))
