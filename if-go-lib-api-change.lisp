@@ -6,7 +6,7 @@
 
   (defpackage #:if-go-lib-api-change
     (:use #:cl #:cl-ppcre #:hash-set))
-
+  
   (in-package #:if-go-lib-api-change))
 
 ;;;;:= TODO: need pub/pravite judger
@@ -230,14 +230,12 @@ Return this file's info, just this file"
      finally (return (values files dirs))))
 
 
-;;:= TODO: clean ignore
 (defun clean-ignore-dir (dirs ignore-dir)
-  dirs)
+  (remove-if (lambda (p) (string= ignore-dir (car (last (pathname-directory p))))) dirs))
 
 
-;;:= TODO: filter file type
 (defun filter-file-type (type files)
-  files)
+  (remove-if-not (lambda (f) (string= type (pathname-type f))) files))
 
 
 (defun loop-files-with-root (root &optional (filetype ".go") &key ignore-dir)
