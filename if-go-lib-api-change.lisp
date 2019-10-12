@@ -18,7 +18,8 @@
 (defstruct go-package-head
   "this file package"
   name
-  path)
+  path
+  filename)
 
 
 (defstruct go-type
@@ -72,7 +73,7 @@
                                                    (nth 1 (cl-ppcre:split "\\s+" first-line)))
                                              ;; read all line left
                                              (do* ((li (read-line ll nil) (read-line ll nil))
-                                                   (cut-li (cl-ppcre:split "\\s+" li))
+                                                   (cut-li (cl-ppcre:split "\\s+" li) (cl-ppcre:split "\\s+" li))
                                                    (result '()))
                                                   ((not li)
                                                    (setf (go-type-fields type-instance) result)
@@ -103,7 +104,9 @@
                               (give-func-declare str)
                               )
                              ((string= "package" (car this-line))
-                              (make-go-package-head :name (cadr this-line) :path filepath))
+                              (make-go-package-head :name (cadr this-line)
+                                                    :path (directory-namestring  filepath)
+                                                    :filename (file-namestring filepath)))
                              )))))))
 
 
@@ -186,7 +189,6 @@
 ;;:= need equal function, path is matter, and name is matter too
 (defstruct go-package
   (name "")
-  (path "")
   (import-packages (make-hash-set) :type hash-set) ;;:= TODO: need finish import packages
   (definations '() :type list))
 
@@ -199,25 +201,34 @@ Return this file's info, just one file"
           (loop
              for ele in l
              if (go-package-head-p ele) ;; this line is `package main` line
-             do (setf (go-package-name gp) (go-package-head-name ele)
-                      (go-package-path gp) (go-package-head-path ele))
+             do (setf (go-package-name gp) (concatenate 'string
+                                                        (go-package-head-path ele)
+                                                        (go-package-head-name ele)))
              else collect ele))
     (the go-package gp))) ;; just remind myself
 
 
 (defun update-go-package (source with)
-  source)
+  (if (not with) (return-from update-go-package source))
+
+  (if (string/= (go-package-name source)
+                (go-package-name with))
+      (return-from update-go-package
+        (error "not same package")))
+  
+  (make-go-package
+   :name (go-package-name source)
+   :import-packages (make-hash-set) ;;:= TODO: need update
+   :definations (append (go-package-definations source)
+                        (go-package-definations with)))) 
 
 
-(defun merge-pickup-packages (pgs)
-  ;;:= TODO: update function
-  (print pgs)
-  (let (cache)
-    (dolist (pg pgs cache)
-      (update-go-package
-       (find-if (lambda (p) (string= (go-package-name p) (go-package-name pg))) cache)
-       pg)))
-  )
+(defun merge-pickup-packages (pgs table)
+  (dolist (pg pgs)
+    (setf (gethash (go-package-name pg) table)
+          (update-go-package
+           pg
+           (gethash (go-package-name pg) table)))))
 
 
 (defun list-all-files-and-folders (root &key (hide nil))
@@ -250,13 +261,14 @@ Return this file's info, just one file"
 (defun loop-files-with-root (root &optional (filetype "go") &key ignore-dir)
   (do* ((root-dirs (list root))
         (root-dir (car root-dirs) (car root-dirs))
-        (result)
+        (result (make-hash-table :test 'equal))
         )
        ((not root-dirs) result)
     (multiple-value-bind (files dirs) (list-all-files-and-folders root-dir)
-      (setf result (merge-pickup-packages ;;:= need update too
-                    (map 'list (lambda (file)
-                                 (pickup-package (scan-file file)))
-                         (filter-file-type filetype files))))
+      (merge-pickup-packages ;;:= need update too
+       (map 'list (lambda (file)
+                    (pickup-package (scan-file file)))
+            (filter-file-type filetype files))
+       result)
       (setf root-dirs (append (cdr root-dirs) (clean-ignore-dir dirs ignore-dir))))
     ))
