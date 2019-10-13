@@ -63,43 +63,8 @@
                               ;; find when this code block end, merge it with first line to get whole
                               ;; code block 
                               (let ((code-block (concatenate 'string str (find-this-block stream))))
-                                (with-input-from-string (ll code-block)
-                                  (let* ((first-line (read-line ll))
-                                         (type-is (cl-ppcre:scan-to-strings "\\w+(?=\\s*{\\s*$)" first-line))) ; first line
-                                    (cond ((string= "struct" type-is)
-                                           (let ((type-instance (make-go-type :name "" :type type-is :fields '())))
-                                             ;; find name
-                                             (setf (go-type-name type-instance)
-                                                   (nth 1 (cl-ppcre:split "\\s+" first-line)))
-                                             ;; read all line left
-                                             (do* ((li (read-line ll nil) (read-line ll nil))
-                                                   (cut-li (cl-ppcre:split "\\s+" li) (cl-ppcre:split "\\s+" li))
-                                                   (result '()))
-                                                  ((not li)
-                                                   (setf (go-type-fields type-instance) result)
-                                                   (return type-instance))
-                                               (if (not (equal "}" li))
-                                                   (setf result (append result
-                                                                        (list (remove-if (lambda (x) (string= x ""))
-                                                                                         cut-li))))))))
-                                          ((string= "interface" type-is)
-                                           (let ((type-instance (make-go-type :name "" :type type-is :fields '())))
-                                             ;; find name
-                                             (setf (go-type-name type-instance)
-                                                   (nth 1 (cl-ppcre:split "\\s+" first-line)))
-                                             ;; read all line left
-                                             (do* ((li (read-line ll nil) (read-line ll nil))
-                                                   (cut-li (cl-ppcre:split "\\s+" li :limit 2))
-                                                   (result '()))
-                                                  ((not li)
-                                                   (setf (go-type-fields type-instance) result)
-                                                   (return type-instance))
-                                               (if (not (equal "}" li))
-                                                   (setf result (append result
-                                                                        (list (remove-if (lambda (x) (string= x ""))
-                                                                                         cut-li)))))))
-                                           )))
-                                  )))
+                                (give-type-declare code-block))
+                              )
                              ((string= "func" (car this-line))
                               (give-func-declare str)
                               )
@@ -110,10 +75,50 @@
                              )))))))
 
 
+(defun give-type-declare (code-block)
+  (with-input-from-string (ll code-block)
+    (let* ((first-line (read-line ll))
+           (type-is (cl-ppcre:scan-to-strings "\\w+(?=\\s*{\\s*$)" first-line))) ; first line
+      (cond ((string= "struct" type-is)
+             (let ((type-instance (make-go-type :name "" :type type-is :fields '())))
+               ;; find name
+               (setf (go-type-name type-instance)
+                     (nth 1 (cl-ppcre:split "\\s+" first-line)))
+               ;; read all line left
+               (do* ((li (read-line ll nil) (read-line ll nil))
+                     (cut-li (cl-ppcre:split "\\s+" li) (cl-ppcre:split "\\s+" li))
+                     (result '()))
+                    ((not li)
+                     (setf (go-type-fields type-instance) result)
+                     (return type-instance))
+                 (if (not (equal "}" li))
+                     (setf result (append result
+                                          (list (remove-if (lambda (x) (string= x ""))
+                                                           cut-li))))))))
+            ((string= "interface" type-is)
+             (let ((type-instance (make-go-type :name "" :type type-is :fields '())))
+               ;; find name
+               (setf (go-type-name type-instance)
+                     (nth 1 (cl-ppcre:split "\\s+" first-line)))
+               ;; read all line left
+               (do* ((li (read-line ll nil) (read-line ll nil))
+                     (cut-li (cl-ppcre:split "\\s+" li :limit 2))
+                     (result '()))
+                    ((not li)
+                     (setf (go-type-fields type-instance) result)
+                     (return type-instance))
+                 (if (not (equal "}" li))
+                     (setf result (append result
+                                          (list (remove-if (lambda (x) (string= x ""))
+                                                           cut-li)))))))
+             )))))
+
+
 (defun give-func-declare (line)
   "return method and function struct"
   (declare (string line))
   (let ((rest (cadr (cl-ppcre:split "\\w+\\s*(?=(\\w+|\\())" line :limit 2)))) ; clean "func"
+    ;;(format t "~a" rest)
     (if (char= #\( (elt rest 0))
         ;; make method
         (let (which-type
@@ -131,12 +136,12 @@
            ;; give method name
            name (cl-ppcre:scan-to-strings "\\b\\w+" temp)
            ;; update temp to string without method name
-           temp (cadr (cl-ppcre:split "\\b\\w+\\s+" temp :limit 2))
+           temp (cadr (cl-ppcre:split "\\b\\w+" temp :limit 2))
            ;; give args value
            args (value-and-types (cl-ppcre:scan-to-strings "\\(.*?\\)" temp))
            ;; temp only have return part now
            temp (cadr (cl-ppcre:split "\\(.*?\\)\\s*" temp  :limit 2))
-           return-value (value-and-types (cl-ppcre:scan-to-strings ".*(?=\s*{)" temp))
+           return-value (cl-ppcre:scan-to-strings ".*(?=\\s*{)" temp)
            )
 
           (make-go-method :type which-type :name name :args args :return-value return-value)
@@ -147,12 +152,12 @@
            ;;give function name
            name (cl-ppcre:scan-to-strings "\\b\\w+" temp)
            ;; update temp to string without method name
-           temp (cadr (cl-ppcre:split "\\b\\w+\\s+" temp :limit 2))
+           temp (cadr (cl-ppcre:split "\\b\\w+" temp :limit 2))
            ;; give args value
-           args (value-and-types (cl-ppcre:scan-to-strings "\\(.*\\)" temp))
+           args (value-and-types (cl-ppcre:scan-to-strings "\\(.*?\\)" temp))
            ;; temp only have return part now
            temp (cadr (cl-ppcre:split "\\(.*?\\)\\s*" temp  :limit 2))
-           return-value (value-and-types (cl-ppcre:scan-to-strings ".*(?=\s*{)" temp))
+           return-value (cl-ppcre:scan-to-strings ".*(?=\\s*{)" temp)
            )
           (make-go-function :name name :args args :return-value return-value)
           )
@@ -186,9 +191,9 @@
              (setf stack (append stack (list c))))))))
 
 
-;;:= need equal function, path is matter, and name is matter too
 (defstruct go-package
   (name "")
+  (path "")
   (import-packages (make-hash-set) :type hash-set) ;;:= TODO: need finish import packages
   (definations '() :type list))
 
@@ -201,9 +206,9 @@ Return this file's info, just one file"
           (loop
              for ele in l
              if (go-package-head-p ele) ;; this line is `package main` line
-             do (setf (go-package-name gp) (concatenate 'string
-                                                        (go-package-head-path ele)
-                                                        (go-package-head-name ele)))
+             do (setf (go-package-name gp) (go-package-head-name ele)
+                      (go-package-path gp) (go-package-head-path ele)
+                      )
              else collect ele))
     (the go-package gp))) ;; just remind myself
 
@@ -211,13 +216,9 @@ Return this file's info, just one file"
 (defun update-go-package (source with)
   (if (not with) (return-from update-go-package source))
 
-  (if (string/= (go-package-name source)
-                (go-package-name with))
-      (return-from update-go-package
-        (error "not same package")))
-  
   (make-go-package
    :name (go-package-name source)
+   :path (go-package-path source)
    :import-packages (make-hash-set) ;;:= TODO: need update
    :definations (append (go-package-definations source)
                         (go-package-definations with)))) 
@@ -225,10 +226,18 @@ Return this file's info, just one file"
 
 (defun merge-pickup-packages (pgs table)
   (dolist (pg pgs)
-    (setf (gethash (go-package-name pg) table)
+    (setf (gethash (concatenate 'string
+                                (go-package-path pg)
+                                ":"
+                                (go-package-name pg))
+                   table) ;; table key is paht + package_name
           (update-go-package
            pg
-           (gethash (go-package-name pg) table)))))
+           (gethash (concatenate 'string
+                                 (go-package-path pg)
+                                 ":"
+                                 (go-package-name pg))
+                    table)))))
 
 
 (defun list-all-files-and-folders (root &key (hide nil))
@@ -259,6 +268,7 @@ Return this file's info, just one file"
 
 
 (defun loop-files-with-root (root &optional (filetype "go") &key ignore-dir)
+  "return a hashtable"
   (do* ((root-dirs (list root))
         (root-dir (car root-dirs) (car root-dirs))
         (result (make-hash-table :test 'equal))
@@ -272,3 +282,7 @@ Return this file's info, just one file"
        result)
       (setf root-dirs (append (cdr root-dirs) (clean-ignore-dir dirs ignore-dir))))
     ))
+
+
+(defun compare-table (a b)
+  (loop for k being the hash-keys of a))
