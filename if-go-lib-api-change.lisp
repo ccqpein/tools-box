@@ -21,6 +21,10 @@
   path
   filename)
 
+(defstruct go-import
+  "for import"
+  import-packages ;;list
+  )
 
 (defstruct go-type
   name
@@ -72,7 +76,23 @@
                               (make-go-package-head :name (cadr this-line)
                                                     :path (directory-namestring  filepath)
                                                     :filename (file-namestring filepath)))
+                             ((string= "import" (car this-line))
+                              (cond ((char= #\" (elt (cadr this-line) 0))
+                                     (make-go-import :import-packages (cdr this-line)))
+                                    ((char= #\( (elt (cadr this-line) 0))
+                                     (mutil-import-packages (find-this-block stream (cons #\( #\)))))
+                                    ))
                              )))))))
+
+
+(defun mutil-import-packages (code-block)
+  (make-go-import :import-packages
+                  (loop
+                     with string-stream = (make-string-input-stream code-block)
+                     for line = (read-line string-stream nil nil)
+                     when (or (eq nil line) (char= (elt line 0) #\)))
+                     return result 
+                     collect (string-left-trim '(#\Space #\Tab) line) into result)))
 
 
 (defun give-type-declare (code-block)
@@ -175,19 +195,19 @@
     ))
 
 
-(defun find-this-block (stream)
+(defun find-this-block (stream &optional (syn (cons #\{ #\})))
   "find code body block"
-  (let ((stack '(#\{))
-        (result '(#\linefeed)))
+  (let ((stack (list (car syn)))
+        (result '()))
     (do (c)
         ((not stack) (coerce result 'string))
       ;; update c and result
       (setf c (read-char stream)
             result (append result (list c)))
       ;; judge this char
-      (cond ((char= c #\}) 
+      (cond ((char= c (cdr syn)) 
              (setf stack (butlast stack)))
-            ((char= c #\{)
+            ((char= c (car syn))
              (setf stack (append stack (list c))))))))
 
 
@@ -275,7 +295,7 @@ Return this file's info, just one file"
         )
        ((not root-dirs) result)
     (multiple-value-bind (files dirs) (list-all-files-and-folders root-dir)
-      (merge-pickup-packages ;;:= need update too
+      (merge-pickup-packages
        (map 'list (lambda (file)
                     (pickup-package (scan-file file)))
             (filter-file-type filetype files))
@@ -284,5 +304,10 @@ Return this file's info, just one file"
     ))
 
 
-(defun compare-table (a b)
-  (loop for k being the hash-keys of a))
+(defun collect-diff (a b)
+  (loop
+     for k being the hash-keys of a
+     for v-a = (gethash k a)
+     for v-b = (gethash k b)
+     when (not (equalp v-a v-b))
+     collect (list v-a v-b)))
