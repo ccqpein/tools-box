@@ -21,10 +21,12 @@
   path
   filename)
 
+
 (defstruct go-import
   "for import"
   import-packages ;;list
   )
+
 
 (defstruct go-type
   name
@@ -57,7 +59,7 @@
   "return all declares"
   (do* ((result '())
        (str (read-line stream nil) (read-line stream nil))
-       (this-line (cl-ppcre:split "\\s+|\\(" str :limit 2) (cl-ppcre:split "\\s+|\\(" str :limit 2) ))
+       (this-line (cl-ppcre:split "\\s+|\\(" str :limit 2) (cl-ppcre:split "\\s+|\\(" str :limit 2)))
        ((not str) (remove nil result))
     (if str
         (setf result
@@ -87,12 +89,15 @@
 
 (defun mutil-import-packages (code-block)
   (make-go-import :import-packages
-                  (loop
-                     with string-stream = (make-string-input-stream code-block)
-                     for line = (read-line string-stream nil nil)
-                     when (or (eq nil line) (char= (elt line 0) #\)))
-                     return result 
-                     collect (string-left-trim '(#\Space #\Tab) line) into result)))
+                  (do* (result
+                        (string-stream (make-string-input-stream code-block))
+                        (line (read-line string-stream nil 'EOF) (read-line string-stream nil 'EOF)))
+                      ((or (eq line 'EOF)
+                           (and (string/= "" line) (char= #\) (elt line 0))))
+                       (reverse result))
+                    (if (string/= "" line)
+                        (push (string-left-trim '(#\Space #\Tab) line) result))
+                    )))
 
 
 (defun give-type-declare (code-block)
@@ -196,9 +201,9 @@
 
 
 (defun find-this-block (stream &optional (syn (cons #\{ #\})))
-  "find code body block"
+  "find code body block, consume stream and return string of this code block"
   (let ((stack (list (car syn)))
-        (result '()))
+        (result '(#\linefeed)))
     (do (c)
         ((not stack) (coerce result 'string))
       ;; update c and result
@@ -211,40 +216,51 @@
              (setf stack (append stack (list c))))))))
 
 
+;;;:= TODO: need equal function, equalp is not enough
 (defstruct go-package
   (name "")
   (path "")
-  (import-packages (make-hash-set) :type hash-set) ;;:= TODO: need finish import packages
+  (import-packages (make-hash-set) :type hash-set)
   (definations '() :type list))
 
 
 (defun pickup-package (l)
   "l is all definations return from scan function. 
-Return this file's info, just one file"
+Return this file's go-package struct, just this file"
   (let ((gp (make-go-package)))
-    (setf (go-package-definations gp)
-          (loop
-             for ele in l
-             if (go-package-head-p ele) ;; this line is `package main` line
-             do (setf (go-package-name gp) (go-package-head-name ele)
-                      (go-package-path gp) (go-package-head-path ele)
-                      )
-             else collect ele))
+    (loop
+       for ele in l
+       if (go-package-head-p ele) ;; this line is `package main` line
+       do (setf (go-package-name gp) (go-package-head-name ele)
+                (go-package-path gp) (go-package-head-path ele)
+                )
+         
+       else if (go-import-p ele)
+       append (go-import-import-packages ele) into import-pathes
+         
+       else collect ele into definations
+         
+       finally
+         (setf (go-package-definations gp) definations
+               (go-package-import-packages gp) (list-to-hs import-pathes)))
     (the go-package gp))) ;; just remind myself
 
 
 (defun update-go-package (source with)
+  "update go-packages"
   (if (not with) (return-from update-go-package source))
 
   (make-go-package
    :name (go-package-name source)
    :path (go-package-path source)
-   :import-packages (make-hash-set) ;;:= TODO: need update
+   :import-packages (hs-nunion (go-package-import-packages source)
+                               (go-package-import-packages with))
    :definations (append (go-package-definations source)
                         (go-package-definations with)))) 
 
 
 (defun merge-pickup-packages (pgs table)
+  "give a list of go-packages and a hashtable, update table with updated go-package"
   (dolist (pg pgs)
     (setf (gethash (concatenate 'string
                                 (go-package-path pg)
@@ -288,7 +304,7 @@ Return this file's info, just one file"
 
 
 (defun loop-files-with-root (root &optional (filetype "go") &key ignore-dir)
-  "return a hashtable"
+  "iterate all folder, collect all packages and return a hashtable"
   (do* ((root-dirs (list root))
         (root-dir (car root-dirs) (car root-dirs))
         (result (make-hash-table :test 'equal))
@@ -298,7 +314,7 @@ Return this file's info, just one file"
       (merge-pickup-packages
        (map 'list (lambda (file)
                     (pickup-package (scan-file file)))
-            (filter-file-type filetype files))
+            (filter-file-type filetype files)) 
        result)
       (setf root-dirs (append (cdr root-dirs) (clean-ignore-dir dirs ignore-dir))))
     ))
