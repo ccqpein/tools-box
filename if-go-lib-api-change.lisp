@@ -224,6 +224,14 @@
   (definations '() :type list))
 
 
+(defun equal-go-package (a b)
+  (declare (type go-package a b))
+  (and (string= (go-package-name a) (go-package-name b))
+       (string= (go-package-path a) (go-package-path b))
+       (hs-equal (go-package-import-packages a) (go-package-import-packages b))
+       ))
+
+
 (defun pickup-package (l)
   "l is all definations return from scan function. 
 Return this file's go-package struct, just this file"
