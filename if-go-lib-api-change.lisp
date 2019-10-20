@@ -232,14 +232,6 @@
        ))
 
 ;;;;; fix hash-set package function
-(defmacro dohashset ((var hash-set &optional result) &body body)
-  ;; magic due to pjb from #lisp
-  `(block nil (hs-map (lambda (,var)
-                        (tagbody ,@body))
-                      ,hash-set)
-          ,result))
-
-
 (defun hs-equal (hs-a hs-b)
   (if (/= (hs-count hs-a) (hs-count hs-b))
       nil
