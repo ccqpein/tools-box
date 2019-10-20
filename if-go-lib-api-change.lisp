@@ -10,7 +10,6 @@
   (in-package #:if-go-lib-api-change))
 
 ;;;;:= TODO: need pub/pravite judger
-;;;;:= TODO: need to handle "a,b,c int" format in struct
 
 (setf *print-case* :capitalize)
 
@@ -111,15 +110,27 @@
                      (nth 1 (cl-ppcre:split "\\s+" first-line)))
                ;; read all line left
                (do* ((li (read-line ll nil) (read-line ll nil))
-                     (cut-li (cl-ppcre:split "\\s+" li) (cl-ppcre:split "\\s+" li))
+                     ;;; cut each line to ("a" "string")
+                     (cut-li (remove-if (lambda (x) (string= x ""))
+                                        (cl-ppcre:split ",|\\s+" li))
+                             (remove-if (lambda (x) (string= x ""))
+                                        (cl-ppcre:split ",|\\s+" li)))
                      (result '()))
                     ((not li)
-                     (setf (go-type-fields type-instance) result)
+                     (setf (go-type-fields type-instance) (reverse result))
                      (return type-instance))
-                 (if (not (equal "}" li))
-                     (setf result (append result
-                                          (list (remove-if (lambda (x) (string= x ""))
-                                                           cut-li))))))))
+                 
+                 (if (string/= "}" li)
+                     (if (= 2 (length cut-li)) ;; if just (a string)
+                         (push (remove-if (lambda (x) (string= x ""))
+                                          cut-li)
+                               result)
+                         ;; else (a b string)
+                         (loop
+                            for fname in (butlast cut-li)
+                            do (push (list fname (car (last cut-li))) result)))
+                     ))))
+            
             ((string= "interface" type-is)
              (let ((type-instance (make-go-type :name "" :type type-is :fields '())))
                ;; find name
