@@ -259,7 +259,8 @@
     (loop
        for k being the hash-key
        using (hash-value v) of ht
-       do (format t "key is ~s, value is ~a~%" k v))
+       do (format t "key is ~a, value is ~a~%" k v))
+    (print (gethash "\"go-type\":\"Function\"" ht))
     (loop
        for i in d2
        do (format t "this value is ~a~%" i)
@@ -269,7 +270,7 @@
                            (format nil "~a" i))
                  ;;(return-from compare-definations nil)
                  (progn
-                   (format nil "key is ~s:~s~%" "go-type" (go-type-name i))
+                   (format t "key is ~s:~s~%" "go-type" (go-type-name i))
                    (format t "value is ~a~%" (gethash (format nil "~s:~s" "go-type"
                                                               (go-type-name i))
                                                       ht))
