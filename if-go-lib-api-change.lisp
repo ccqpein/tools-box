@@ -379,7 +379,7 @@ Return this file's go-package struct, just this file"
   (remove-if-not (lambda (f) (string= type (pathname-type f))) files))
 
 
-(defun loop-files-with-root (root &optional (filetype "go") &key ignore-dir)
+(defun loop-files-with-root (root &optional (filetype "go") (ignore-dir ""))
   "iterate all folder, collect all packages and return a hashtable"
   (do* ((root-dirs (list root))
         (root-dir (car root-dirs) (car root-dirs))
@@ -401,10 +401,22 @@ Return this file's go-package struct, just this file"
      for k being the hash-keys of a
      for v-a = (gethash k a)
      for v-b = (gethash k b)
-     when (not (equalp v-a v-b))
+     when (not (compare-definations v-a v-b))
      collect (list v-a v-b)))
 
 
-;;;;;:= TODO: git checkout
 (defun checkout-hash (hash)
   (sb-ext:run-program "/usr/local/bin/git" (list "checkout" hash) :output *standard-output*))
+
+
+;;:= need test
+(defun main (h1 h2)
+  (let (ht1 ht2)
+    (sb-ext:run-program "/usr/local/bin/git" (list "checkout" h1) :output *standard-output*)
+    (setf ht1 (loop-files-with-root "." :ignore-dir "vendor"))
+   
+    (sb-ext:run-program "/usr/local/bin/git" (list "checkout" h2) :output *standard-output*)
+    (setf ht2 (loop-files-with-root "." :ignore-dir "vendor"))
+
+    (collect-diff ht1 ht2)
+    ))
