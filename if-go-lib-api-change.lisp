@@ -227,12 +227,11 @@
              (setf stack (append stack (list c))))))))
 
 
-;;;:= TODO: need equal function, equalp is not enough
 (defstruct go-package
   (name "")
   (path "")
   (import-packages (make-hash-set) :type hash-set)
-  (definations '() :type list)) ;;:= TODO: I want to change this to hashtable for equal
+  (definations '() :type list))
 
 
 (defun equal-go-package (a b)
@@ -240,6 +239,7 @@
   (and (string= (go-package-name a) (go-package-name b))
        (string= (go-package-path a) (go-package-path b))
        (hs-equal (go-package-import-packages a) (go-package-import-packages b))
+       (compare-definations (go-package-definations a) (go-package-definations b))
        ))
 
 
@@ -257,24 +257,12 @@
 (defun compare-definations (d1 d2)
   (let ((ht (definations-to-hashtable d1)))
     (loop
-       for k being the hash-key
-       using (hash-value v) of ht
-       do (format t "key is ~a, value is ~a~%" k v))
-    (print (gethash "\"go-type\":\"Function\"" ht))
-    (loop
        for i in d2
-       do (format t "this value is ~a~%" i)
        do (cond
             ((go-type-p i)
              (if (string/= (gethash (format nil "~s:~s" "go-type" (go-type-name i)) ht)
                            (format nil "~a" i))
-                 ;;(return-from compare-definations nil)
-                 (progn
-                   (format t "key is ~s:~s~%" "go-type" (go-type-name i))
-                   (format t "value is ~a~%" (gethash (format nil "~s:~s" "go-type"
-                                                              (go-type-name i))
-                                                      ht))
-                   )
+                 (return-from compare-definations nil)
                  ))
             
             ((go-function-p i)
@@ -286,15 +274,14 @@
              (if (string/= (gethash (format nil "~s:~s" "go-method" (go-method-name i)) ht)
                            (format nil "~a" i))
                  (return-from compare-definations nil)
-                 )))
-         )
+                 ))))
     t))
 
 
 (defun definations-to-hashtable (ls)
   "get all definations from go-package and return hashtable for compare purpose"
   (loop
-     with result = (make-hash-table)
+     with result = (make-hash-table :test 'equal)
      for i in ls
      do (cond
           ((go-type-p i)
@@ -416,3 +403,8 @@ Return this file's go-package struct, just this file"
      for v-b = (gethash k b)
      when (not (equalp v-a v-b))
      collect (list v-a v-b)))
+
+
+;;;;;:= TODO: git checkout
+(defun checkout-hash (hash)
+  (sb-ext:run-program "/usr/local/bin/git" (list "checkout" hash) :output *standard-output*))
