@@ -9,7 +9,6 @@
   
   (in-package #:if-go-lib-api-change))
 
-;;;;:= TODO: need pub/pravite judger
 
 (setf *print-case* :capitalize)
 
@@ -401,7 +400,7 @@ Return this file's go-package struct, just this file"
      for k being the hash-keys of a
      for v-a = (gethash k a)
      for v-b = (gethash k b)
-     when (not (compare-definations v-a v-b))
+     when (not (equal-go-package v-a v-b))
      collect (list v-a v-b)))
 
 
