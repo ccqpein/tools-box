@@ -6,8 +6,9 @@
 
   (defpackage #:if-go-lib-api-change
     (:use #:cl #:cl-ppcre #:hash-set))
-  
-  (in-package #:if-go-lib-api-change))
+)
+
+(in-package #:if-go-lib-api-change)
 
 
 (setf *print-case* :capitalize)
